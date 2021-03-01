@@ -39,7 +39,8 @@ const userSchema = new mongoose.Schema({
   email: String,
   password: String,
   googleId: String,
-  facebookId: String
+  facebookId: String,
+  secret: String
 });
 
 //important to place beneath lines above:
@@ -60,6 +61,7 @@ passport.deserializeUser(function(id, done) {
   });
 });
 
+// Google OAuth 2.0:
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
@@ -75,6 +77,7 @@ passport.use(new GoogleStrategy({
   }
 ));
 
+// Facebook OAuth 2.0:
 passport.use(new FacebookStrategy({
     clientID: process.env.APP_ID,
     clientSecret: process.env.APP_SECRET,
@@ -104,16 +107,16 @@ app.get("/auth/google/secrets",
     failureRedirect: "/login"
   }));
 
-app.get('/auth/facebook',
-  passport.authenticate('facebook'));
+app.get("/auth/facebook",
+  passport.authenticate("facebook"));
 
-app.get('/auth/facebook/callback',
-  passport.authenticate('facebook', {
-    failureRedirect: '/login'
+app.get("/auth/facebook/secrets",
+  passport.authenticate("facebook", {
+    failureRedirect: "/login"
   }),
   function(req, res) {
     // Successful authentication, redirect home.
-    res.redirect('/secrets');
+    res.redirect("/secrets");
   });
 
 
@@ -127,10 +130,42 @@ app.get("/register", function(req, res) {
 
 app.get("/secrets", function(req, res) {
   if (req.isAuthenticated()) {
-    res.render("secrets");
+    User.find({"secret": {$ne: null}}, function(err, foundUsers){
+      if(err) {
+        console.log(err);
+      } else {
+        if (foundUsers) {
+          res.render("secrets", {usersWithSecrets: foundUsers});
+        }
+      }
+    });
   } else {
     res.redirect("/login");
   }
+});
+
+app.get("/submit", function(req, res) {
+  if (req.isAuthenticated()) {
+    res.render("submit");
+  } else {
+    res.redirect("/login");
+  }
+});
+
+app.post("/submit", function(req, res){
+  const submittedSecret = req.body.secret;
+  User.findById(req.user.id, function(err, foundUser){
+    if(err){
+      console.log(err);
+    } else {
+      if (foundUser) {
+        foundUser.secret = submittedSecret;
+        foundUser.save(function(){
+          res.redirect("/secrets")
+        });
+      }
+    }
+  });
 });
 
 app.get("/logout", function(req, res) {
